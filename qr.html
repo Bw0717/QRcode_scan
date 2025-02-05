@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <input type="file" id="fileInput" accept="image/*">
+  <button onclick="openCamera()">開啟相機</button>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <script>
+    async function initialize() {
+      await liff.init({ liffId: 'YOUR_LIFF_ID' });
+      if (!liff.isLoggedIn()) liff.login();
+    }
+    initialize();
+
+    // 從相簿選擇圖片
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      processImage(file);
+    });
+
+    // 開啟相機
+    async function openCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.play();
+
+      // 定期檢測QR碼
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      setInterval(() => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        context.drawImage(video, 0, 0);
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code) {
+          liff.sendMessages([{ type: 'text', text: code.data }]);
+          stream.getTracks().forEach(track => track.stop());
+        }
+      }, 500);
+    }
+
+    // 解析圖片
+    function processImage(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          context.drawImage(img, 0, 0);
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          if (code) liff.sendMessages([{ type: 'text', text: code.data }]);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  </script>
+</body>
+</html>
